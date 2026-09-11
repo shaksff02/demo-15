@@ -615,29 +615,23 @@
       padding:0;
       text-decoration:underline;
     }
-    .holiday-add-row{
-      display:flex;
-      gap:8px;
-      align-items:center;
-    }
-    .holiday-add-row input[type="date"]{
-      flex:1;
-    }
-    .holiday-add-btn{
-      background:var(--gold);
-      border:1px solid var(--gold);
-      color:#fff;
+    .holiday-open-btn{
+      background:var(--surface-alt);
+      border:1px solid var(--line);
+      color:var(--ink);
       border-radius:8px;
       padding:11px 16px;
-      font-size:13px;
-      font-family:var(--font-body);
+      font-size:13.5px;
       font-weight:600;
       cursor:pointer;
-      white-space:nowrap;
-      transition:opacity .15s ease;
-      flex-shrink:0;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      transition:all .15s ease;
+      width:100%;
+      justify-content:center;
     }
-    .holiday-add-btn:hover{ opacity:0.9; }
+    .holiday-open-btn:hover{ border-color:var(--gold); color:var(--gold); }
     .holiday-chip-list{
       display:flex;
       flex-wrap:wrap;
@@ -670,6 +664,142 @@
       color:var(--faint);
       margin-top:10px;
     }
+
+    /* ---- Custom Holiday Modal (multi-select calendar popup) ---- */
+    .holiday-modal-overlay{
+      position:fixed;
+      inset:0;
+      background:rgba(33,37,41,0.55);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:1000;
+      padding:20px;
+    }
+    .holiday-modal{
+      background:var(--surface);
+      border-radius:var(--radius);
+      width:100%;
+      max-width:340px;
+      padding:20px;
+      box-shadow:0 20px 60px rgba(0,0,0,0.25);
+    }
+    .holiday-modal-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom:16px;
+    }
+    .holiday-modal-title{
+      font-family:var(--font-display);
+      font-weight:600;
+      font-size:17px;
+      color:var(--ink);
+    }
+    .holiday-modal-close{
+      background:none;
+      border:none;
+      color:var(--faint);
+      font-size:22px;
+      line-height:1;
+      cursor:pointer;
+      padding:0;
+    }
+    .holiday-modal-close:hover{ color:var(--ink); }
+    .holiday-cal-nav{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom:12px;
+    }
+    .holiday-cal-nav button{
+      background:var(--surface-alt);
+      border:1px solid var(--line);
+      color:var(--ink);
+      width:30px;
+      height:30px;
+      border-radius:8px;
+      cursor:pointer;
+      font-size:15px;
+      line-height:1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      transition:all .15s ease;
+    }
+    .holiday-cal-nav button:hover{ border-color:var(--gold); color:var(--gold); }
+    .holiday-cal-nav .cal-title{
+      font-family:var(--font-display);
+      font-weight:600;
+      font-size:15px;
+      color:var(--ink);
+    }
+    .holiday-cal-grid{
+      display:grid;
+      grid-template-columns:repeat(7, 1fr);
+      gap:4px;
+      margin-bottom:18px;
+    }
+    .holiday-cal-grid .dow{
+      text-align:center;
+      font-size:10.5px;
+      font-weight:600;
+      color:var(--faint);
+      text-transform:uppercase;
+      padding:4px 0 6px;
+    }
+    .holiday-cal-day{
+      aspect-ratio:1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:var(--surface-alt);
+      border:1px solid var(--line);
+      border-radius:8px;
+      font-size:13px;
+      color:var(--ink);
+      cursor:pointer;
+      transition:all .12s ease;
+      min-height:34px;
+    }
+    .holiday-cal-day:hover{ border-color:var(--gold); }
+    .holiday-cal-day.empty{
+      background:transparent;
+      border:none;
+      cursor:default;
+    }
+    .holiday-cal-day.today{ border-color:var(--info); font-weight:600; }
+    .holiday-cal-day.selected{
+      background:var(--gold);
+      border-color:var(--gold);
+      color:#fff;
+      font-weight:700;
+    }
+    .holiday-modal-footer{
+      display:flex;
+      gap:10px;
+      justify-content:flex-end;
+    }
+    .holiday-modal-cancel, .holiday-modal-ok{
+      border-radius:8px;
+      padding:10px 18px;
+      font-size:13.5px;
+      font-weight:600;
+      cursor:pointer;
+      font-family:var(--font-body);
+    }
+    .holiday-modal-cancel{
+      background:transparent;
+      border:1px solid var(--line);
+      color:var(--muted);
+    }
+    .holiday-modal-cancel:hover{ border-color:var(--ink); color:var(--ink); }
+    .holiday-modal-ok{
+      background:var(--emerald);
+      border:1px solid var(--emerald);
+      color:#fff;
+    }
+    .holiday-modal-ok:hover{ opacity:0.9; }
 
     /* ===== MOBILE RESPONSIVE FIXES ===== */
     @media (max-width:640px){
@@ -717,6 +847,9 @@
       
       .table-shell { border-radius: 8px; }
       .agent-list { grid-template-columns: 1fr; }
+
+      .holiday-modal{ max-width:100%; padding:16px; }
+      .holiday-cal-day{ min-height:30px; font-size:12px; }
 
       /* ---- Details Table -> Card View on Mobile ---- */
       #schedTableShell{
@@ -890,10 +1023,7 @@
             <span class="lbl">Custom Holiday (duty that day pays +৳510 extra)</span>
             <button type="button" class="holiday-clear-link" id="clearHolidaysBtn" style="display:none;">Clear all</button>
           </div>
-          <div class="holiday-add-row">
-            <input type="date" id="holidayDateInput">
-            <button type="button" class="holiday-add-btn" id="holidayAddBtn">+ Add</button>
-          </div>
+          <button type="button" class="holiday-open-btn" id="openHolidayModalBtn">📅 Select Holiday Dates</button>
           <div class="holiday-chip-list" id="holidayChipList"></div>
           <div class="holiday-empty-note" id="holidayEmptyNote">No custom holidays added yet.</div>
         </div>
@@ -972,6 +1102,26 @@
   <footer class="note">
     No login required — everyone can view this. Refresh the page after changes in the Sheet to see updated data.
   </footer>
+
+  <!-- ========== CUSTOM HOLIDAY MULTI-SELECT MODAL ========== -->
+  <div class="holiday-modal-overlay" id="holidayModalOverlay" style="display:none;">
+    <div class="holiday-modal">
+      <div class="holiday-modal-header">
+        <span class="holiday-modal-title">Select Holiday Dates</span>
+        <button type="button" class="holiday-modal-close" id="holidayModalCloseX">&times;</button>
+      </div>
+      <div class="holiday-cal-nav">
+        <button type="button" id="holidayPrevMonth">‹</button>
+        <span class="cal-title" id="holidayCalTitle">Month Year</span>
+        <button type="button" id="holidayNextMonth">›</button>
+      </div>
+      <div class="holiday-cal-grid" id="holidayCalGrid"></div>
+      <div class="holiday-modal-footer">
+        <button type="button" class="holiday-modal-cancel" id="holidayModalCancel">Cancel</button>
+        <button type="button" class="holiday-modal-ok" id="holidayModalOk">OK</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1098,6 +1248,8 @@
   let salaryVisible = false;
   let selectedKpiCategory = '';
   let customHolidays = new Set(); // sortKeys ('YYYY-MM-DD') marked as custom holiday
+  let tempHolidaySelection = new Set(); // working copy edited inside the modal, committed on OK
+  let holidayCalCursor = new Date(); // month currently shown in the modal calendar
 
   /* ========== VIEW SWITCHER ========== */
   document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -1294,7 +1446,7 @@
       `Showing <b>${rows.length}</b> entries total${agentQ ? ` — for "${document.getElementById('fAgent').value.trim()}"` : ''}`;
   }
 
-  /* ========== CUSTOM HOLIDAY PICKER (compact) ========== */
+  /* ========== CUSTOM HOLIDAY PICKER (modal, multi-select) ========== */
   function renderHolidayList(){
     const chipListEl = document.getElementById('holidayChipList');
     const emptyNoteEl = document.getElementById('holidayEmptyNote');
@@ -1323,13 +1475,71 @@
     }
   }
 
-  document.getElementById('holidayAddBtn').addEventListener('click', () => {
-    const input = document.getElementById('holidayDateInput');
-    if(!input.value) return; // input.value is already 'YYYY-MM-DD'
-    customHolidays.add(input.value);
-    input.value = '';
+  function renderHolidayModalCalendar(){
+    const titleEl = document.getElementById('holidayCalTitle');
+    const gridEl = document.getElementById('holidayCalGrid');
+
+    const year = holidayCalCursor.getFullYear();
+    const month = holidayCalCursor.getMonth();
+    titleEl.textContent = `${monthsEn[month]} ${year}`;
+
+    const firstDay = new Date(year, month, 1);
+    const startWeekday = firstDay.getDay(); // 0=Sun
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const todayKey = getSortKeyFromDate(new Date());
+
+    let cells = weekdaysShortEn.map(w => `<div class="dow">${w}</div>`).join('');
+    for(let i = 0; i < startWeekday; i++){
+      cells += `<div class="holiday-cal-day empty"></div>`;
+    }
+    for(let day = 1; day <= daysInMonth; day++){
+      const d = new Date(year, month, day);
+      const key = getSortKeyFromDate(d);
+      const isSelected = tempHolidaySelection.has(key);
+      const isToday = key === todayKey;
+      cells += `<div class="holiday-cal-day ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}" data-key="${key}">${day}</div>`;
+    }
+    gridEl.innerHTML = cells;
+
+    gridEl.querySelectorAll('.holiday-cal-day:not(.empty)').forEach(cell => {
+      cell.addEventListener('click', () => {
+        const key = cell.dataset.key;
+        if(tempHolidaySelection.has(key)) tempHolidaySelection.delete(key);
+        else tempHolidaySelection.add(key);
+        renderHolidayModalCalendar();
+      });
+    });
+  }
+
+  function openHolidayModal(){
+    tempHolidaySelection = new Set(customHolidays); // start from what's already saved
+    holidayCalCursor = new Date();
+    document.getElementById('holidayModalOverlay').style.display = 'flex';
+    renderHolidayModalCalendar();
+  }
+  function closeHolidayModal(){
+    document.getElementById('holidayModalOverlay').style.display = 'none';
+  }
+
+  document.getElementById('openHolidayModalBtn').addEventListener('click', openHolidayModal);
+  document.getElementById('holidayPrevMonth').addEventListener('click', () => {
+    holidayCalCursor.setMonth(holidayCalCursor.getMonth() - 1);
+    renderHolidayModalCalendar();
+  });
+  document.getElementById('holidayNextMonth').addEventListener('click', () => {
+    holidayCalCursor.setMonth(holidayCalCursor.getMonth() + 1);
+    renderHolidayModalCalendar();
+  });
+  document.getElementById('holidayModalOk').addEventListener('click', () => {
+    customHolidays = new Set(tempHolidaySelection); // commit selection
+    closeHolidayModal();
     renderHolidayList();
     renderHistory();
+  });
+  document.getElementById('holidayModalCancel').addEventListener('click', closeHolidayModal);
+  document.getElementById('holidayModalCloseX').addEventListener('click', closeHolidayModal);
+  document.getElementById('holidayModalOverlay').addEventListener('click', (e) => {
+    if(e.target.id === 'holidayModalOverlay') closeHolidayModal(); // click outside the card
   });
   document.getElementById('clearHolidaysBtn').addEventListener('click', () => {
     customHolidays.clear();

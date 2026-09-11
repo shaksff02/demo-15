@@ -589,7 +589,7 @@
       text-align:center;
     }
 
-    /* ---- Custom Holiday Calendar (Salary Panel) ---- */
+    /* ---- Custom Holiday Picker (Salary Panel) ---- */
     .holiday-field{
       margin:0 0 20px;
     }
@@ -615,81 +615,29 @@
       padding:0;
       text-decoration:underline;
     }
-    .holiday-calendar{
-      border:1px solid var(--line);
-      border-radius:10px;
-      background:var(--surface-alt);
-      padding:14px;
-    }
-    .holiday-cal-nav{
+    .holiday-add-row{
       display:flex;
+      gap:8px;
       align-items:center;
-      justify-content:space-between;
-      margin-bottom:12px;
     }
-    .holiday-cal-nav button{
-      background:var(--surface);
-      border:1px solid var(--line);
-      color:var(--ink);
-      width:30px;
-      height:30px;
-      border-radius:8px;
-      cursor:pointer;
-      font-size:15px;
-      line-height:1;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      transition:all .15s ease;
+    .holiday-add-row input[type="date"]{
+      flex:1;
     }
-    .holiday-cal-nav button:hover{ border-color:var(--gold); color:var(--gold); }
-    .holiday-cal-nav .cal-title{
-      font-family:var(--font-display);
-      font-weight:600;
-      font-size:15px;
-      color:var(--ink);
-    }
-    .holiday-cal-grid{
-      display:grid;
-      grid-template-columns:repeat(7, 1fr);
-      gap:4px;
-    }
-    .holiday-cal-grid .dow{
-      text-align:center;
-      font-size:10.5px;
-      font-weight:600;
-      color:var(--faint);
-      text-transform:uppercase;
-      padding:4px 0 6px;
-    }
-    .holiday-cal-day{
-      aspect-ratio:1;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      background:var(--surface);
-      border:1px solid var(--line);
-      border-radius:8px;
-      font-size:13px;
-      color:var(--ink);
-      cursor:pointer;
-      transition:all .12s ease;
-      min-height:32px;
-    }
-    .holiday-cal-day:hover{ border-color:var(--gold); }
-    .holiday-cal-day.empty{
-      background:transparent;
-      border:none;
-      cursor:default;
-    }
-    .holiday-cal-day.today{ border-color:var(--info); font-weight:600; }
-    .holiday-cal-day.selected{
+    .holiday-add-btn{
       background:var(--gold);
-      border-color:var(--gold);
+      border:1px solid var(--gold);
       color:#fff;
-      font-weight:700;
+      border-radius:8px;
+      padding:11px 16px;
+      font-size:13px;
+      font-family:var(--font-body);
+      font-weight:600;
+      cursor:pointer;
+      white-space:nowrap;
+      transition:opacity .15s ease;
+      flex-shrink:0;
     }
-    .holiday-cal-day.selected:hover{ border-color:var(--gold); }
+    .holiday-add-btn:hover{ opacity:0.9; }
     .holiday-chip-list{
       display:flex;
       flex-wrap:wrap;
@@ -769,8 +717,6 @@
       
       .table-shell { border-radius: 8px; }
       .agent-list { grid-template-columns: 1fr; }
-
-      .holiday-cal-day{ min-height:30px; font-size:12px; }
 
       /* ---- Details Table -> Card View on Mobile ---- */
       #schedTableShell{
@@ -941,19 +887,15 @@
 
         <div class="holiday-field">
           <div class="holiday-field-label">
-            <span class="lbl">Custom Holidays (duty on these days pays ৳510/day)</span>
+            <span class="lbl">Custom Holiday (duty that day pays +৳510 extra)</span>
             <button type="button" class="holiday-clear-link" id="clearHolidaysBtn" style="display:none;">Clear all</button>
           </div>
-          <div class="holiday-calendar">
-            <div class="holiday-cal-nav">
-              <button type="button" id="holidayPrevMonth">‹</button>
-              <span class="cal-title" id="holidayCalTitle">Month Year</span>
-              <button type="button" id="holidayNextMonth">›</button>
-            </div>
-            <div class="holiday-cal-grid" id="holidayCalGrid"></div>
-            <div class="holiday-chip-list" id="holidayChipList"></div>
-            <div class="holiday-empty-note" id="holidayEmptyNote">No custom holidays selected yet — click dates above to add.</div>
+          <div class="holiday-add-row">
+            <input type="date" id="holidayDateInput">
+            <button type="button" class="holiday-add-btn" id="holidayAddBtn">+ Add</button>
           </div>
+          <div class="holiday-chip-list" id="holidayChipList"></div>
+          <div class="holiday-empty-note" id="holidayEmptyNote">No custom holidays added yet.</div>
         </div>
 
         <div class="stats-grid" id="salaryGrid">
@@ -1156,7 +1098,6 @@
   let salaryVisible = false;
   let selectedKpiCategory = '';
   let customHolidays = new Set(); // sortKeys ('YYYY-MM-DD') marked as custom holiday
-  let holidayCalCursor = new Date(); // month currently shown in the holiday picker
 
   /* ========== VIEW SWITCHER ========== */
   document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -1353,47 +1294,12 @@
       `Showing <b>${rows.length}</b> entries total${agentQ ? ` — for "${document.getElementById('fAgent').value.trim()}"` : ''}`;
   }
 
-  /* ========== CUSTOM HOLIDAY CALENDAR ========== */
-  function renderHolidayCalendar(){
-    const titleEl = document.getElementById('holidayCalTitle');
-    const gridEl = document.getElementById('holidayCalGrid');
+  /* ========== CUSTOM HOLIDAY PICKER (compact) ========== */
+  function renderHolidayList(){
     const chipListEl = document.getElementById('holidayChipList');
     const emptyNoteEl = document.getElementById('holidayEmptyNote');
     const clearBtn = document.getElementById('clearHolidaysBtn');
 
-    const year = holidayCalCursor.getFullYear();
-    const month = holidayCalCursor.getMonth();
-    titleEl.textContent = `${monthsEn[month]} ${year}`;
-
-    const firstDay = new Date(year, month, 1);
-    const startWeekday = firstDay.getDay(); // 0=Sun
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const todayKey = getSortKeyFromDate(new Date());
-
-    let cells = weekdaysShortEn.map(w => `<div class="dow">${w}</div>`).join('');
-    for(let i = 0; i < startWeekday; i++){
-      cells += `<div class="holiday-cal-day empty"></div>`;
-    }
-    for(let day = 1; day <= daysInMonth; day++){
-      const d = new Date(year, month, day);
-      const key = getSortKeyFromDate(d);
-      const isSelected = customHolidays.has(key);
-      const isToday = key === todayKey;
-      cells += `<div class="holiday-cal-day ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}" data-key="${key}">${day}</div>`;
-    }
-    gridEl.innerHTML = cells;
-
-    gridEl.querySelectorAll('.holiday-cal-day:not(.empty)').forEach(cell => {
-      cell.addEventListener('click', () => {
-        const key = cell.dataset.key;
-        if(customHolidays.has(key)) customHolidays.delete(key);
-        else customHolidays.add(key);
-        renderHolidayCalendar();
-        renderHistory();
-      });
-    });
-
-    // Chips for selected dates (sorted, across all months)
     const sortedKeys = Array.from(customHolidays).sort();
     if(sortedKeys.length === 0){
       chipListEl.innerHTML = '';
@@ -1410,30 +1316,30 @@
       chipListEl.querySelectorAll('button').forEach(btn => {
         btn.addEventListener('click', () => {
           customHolidays.delete(btn.dataset.key);
-          renderHolidayCalendar();
+          renderHolidayList();
           renderHistory();
         });
       });
     }
   }
 
-  document.getElementById('holidayPrevMonth').addEventListener('click', () => {
-    holidayCalCursor.setMonth(holidayCalCursor.getMonth() - 1);
-    renderHolidayCalendar();
-  });
-  document.getElementById('holidayNextMonth').addEventListener('click', () => {
-    holidayCalCursor.setMonth(holidayCalCursor.getMonth() + 1);
-    renderHolidayCalendar();
+  document.getElementById('holidayAddBtn').addEventListener('click', () => {
+    const input = document.getElementById('holidayDateInput');
+    if(!input.value) return; // input.value is already 'YYYY-MM-DD'
+    customHolidays.add(input.value);
+    input.value = '';
+    renderHolidayList();
+    renderHistory();
   });
   document.getElementById('clearHolidaysBtn').addEventListener('click', () => {
     customHolidays.clear();
-    renderHolidayCalendar();
+    renderHolidayList();
     renderHistory();
   });
 
   /* ========== SALARY CALCULATION ========== */
   const SALARY_PER_DAY = 490;
-  const HOLIDAY_SALARY_PER_DAY = 510;
+  const HOLIDAY_BONUS_PER_DAY = 510; // extra amount added ON TOP of SALARY_PER_DAY for duty on a custom holiday
   const KPI_MIN_DUTY_DAYS = 17;
   const KPI_VALUES = { '': 0, A: 2700, B: 2025, C: 675 };
   const KPI_LABELS = { '': 'No category selected', A: 'Category A selected', B: 'Category B selected', C: 'Category C selected' };
@@ -1514,7 +1420,7 @@
         travelTotal += computeTravelAllowance(r.shift);
         if(customHolidays.has(r.sortKey)){
           holidayDutyDays++;
-          dutyPayTotal += HOLIDAY_SALARY_PER_DAY;
+          dutyPayTotal += SALARY_PER_DAY + HOLIDAY_BONUS_PER_DAY;
         } else {
           normalDutyDays++;
           dutyPayTotal += SALARY_PER_DAY;
@@ -1529,7 +1435,7 @@
     document.getElementById('salaryDutyPay').textContent = fmtTk(dutyPayTotal);
     let dutySubText = `${normalDutyDays} days × ৳${SALARY_PER_DAY}`;
     if(holidayDutyDays > 0){
-      dutySubText += ` + ${holidayDutyDays} holiday × ৳${HOLIDAY_SALARY_PER_DAY}`;
+      dutySubText += ` + ${holidayDutyDays} holiday × ৳${SALARY_PER_DAY + HOLIDAY_BONUS_PER_DAY}`;
     }
     document.getElementById('salaryDutySub').textContent = dutySubText;
     document.getElementById('salaryTravel').textContent = fmtTk(travelTotal);
@@ -1553,9 +1459,7 @@
     toggleBtn.setAttribute('aria-expanded', salaryVisible ? 'true' : 'false');
     panelBody.style.display = salaryVisible ? 'block' : 'none';
 
-    if(salaryVisible){
-      renderHolidayCalendar();
-    }
+    renderHolidayList();
   }
 
   /* ========== AGENT HISTORY VIEW RENDER ========== */

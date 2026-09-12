@@ -545,6 +545,58 @@
     #schedTable td:nth-child(4){ font-weight:600; }
     #schedTable td:nth-child(3){ color:var(--muted); font-size:13px; }
 
+    thead th[data-sort]{
+      cursor:pointer;
+      user-select:none;
+      transition:color .12s ease;
+    }
+    thead th[data-sort]:hover{ color:var(--ink); }
+    .sort-arrow{
+      display:inline-block;
+      margin-left:5px;
+      font-size:10px;
+      color:var(--faint);
+    }
+    .sort-arrow.active{ color:var(--emerald); }
+
+    .pagination-bar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-top:16px;
+      flex-wrap:wrap;
+    }
+    .pagination-info{
+      font-size:13px;
+      color:var(--muted);
+    }
+    .pagination-controls{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .page-btn{
+      background:var(--surface);
+      border:1px solid var(--line);
+      color:var(--ink);
+      border-radius:8px;
+      padding:8px 16px;
+      font-size:13px;
+      font-weight:500;
+      font-family:var(--font-body);
+      cursor:pointer;
+      transition:all .15s ease;
+    }
+    .page-btn:hover:not(:disabled){ border-color:var(--emerald); color:var(--emerald); }
+    .page-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+    .page-indicator{
+      font-size:13px;
+      color:var(--muted);
+      font-weight:500;
+      white-space:nowrap;
+    }
+
     .state-msg{
       padding:60px 20px;
       text-align:center;
@@ -848,6 +900,9 @@
       .table-shell { border-radius: 8px; }
       .agent-list { grid-template-columns: 1fr; }
 
+      .pagination-bar{ flex-direction:column; align-items:stretch; text-align:center; }
+      .pagination-controls{ justify-content:center; }
+
       .holiday-modal{ max-width:100%; padding:16px; }
       .holiday-cal-day{ min-height:30px; font-size:12px; }
 
@@ -957,12 +1012,20 @@
     <div class="table-shell" id="schedTableShell">
       <table id="schedTable" style="display:none">
         <thead>
-          <tr><th>Date</th><th>Shift</th><th>System ID</th><th>Agent Name</th><th>Region</th></tr>
+          <tr>
+            <th data-sort="date">Date <span class="sort-arrow" id="sortArrow-date"></span></th>
+            <th data-sort="shift">Shift <span class="sort-arrow" id="sortArrow-shift"></span></th>
+            <th data-sort="systemId">System ID <span class="sort-arrow" id="sortArrow-systemId"></span></th>
+            <th data-sort="agentName">Agent Name <span class="sort-arrow" id="sortArrow-agentName"></span></th>
+            <th data-sort="region">Region <span class="sort-arrow" id="sortArrow-region"></span></th>
+          </tr>
         </thead>
         <tbody id="tbodyDetails"></tbody>
       </table>
       <div class="state-msg" id="stateMsgDetails">Loading…</div>
     </div>
+
+    <div class="pagination-bar" id="detailsPagination"></div>
   </div>
 
   <!-- ========== AGENT HISTORY VIEW ========== -->
@@ -1250,6 +1313,10 @@
   let customHolidays = new Set(); // sortKeys ('YYYY-MM-DD') marked as custom holiday
   let tempHolidaySelection = new Set(); // working copy edited inside the modal, committed on OK
   let holidayCalCursor = new Date(); // month currently shown in the modal calendar
+  let detailsSortColumn = 'date';
+  let detailsSortDirection = 'asc';
+  let detailsCurrentPage = 1;
+  const DETAILS_PAGE_SIZE = 30;
 
   /* ========== VIEW SWITCHER ========== */
   document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -1417,20 +1484,41 @@
       return true;
     });
 
-    rows.sort((a,b) => a.sortKey.localeCompare(b.sortKey) || a.shift.localeCompare(b.shift));
+    const dir = detailsSortDirection === 'asc' ? 1 : -1;
+    rows.sort((a,b) => {
+      let av, bv;
+      switch(detailsSortColumn){
+        case 'shift': av = a.shift.toLowerCase(); bv = b.shift.toLowerCase(); break;
+        case 'systemId': av = a.systemId.toLowerCase(); bv = b.systemId.toLowerCase(); break;
+        case 'agentName': av = a.agentName.toLowerCase(); bv = b.agentName.toLowerCase(); break;
+        case 'region': av = a.region.toLowerCase(); bv = b.region.toLowerCase(); break;
+        case 'date':
+        default: av = a.sortKey; bv = b.sortKey; break;
+      }
+      if(av < bv) return -1 * dir;
+      if(av > bv) return 1 * dir;
+      return a.sortKey.localeCompare(b.sortKey); // stable tie-breaker
+    });
 
     const tbody = document.getElementById('tbodyDetails');
     const table = document.getElementById('schedTable');
     const stateMsg = document.getElementById('stateMsgDetails');
+    const totalRows = rows.length;
+    const totalPages = Math.max(1, Math.ceil(totalRows / DETAILS_PAGE_SIZE));
+    if(detailsCurrentPage > totalPages) detailsCurrentPage = totalPages;
+    if(detailsCurrentPage < 1) detailsCurrentPage = 1;
+    const startIdx = (detailsCurrentPage - 1) * DETAILS_PAGE_SIZE;
+    const pageRows = rows.slice(startIdx, startIdx + DETAILS_PAGE_SIZE);
 
-    if(rows.length === 0){
+    if(totalRows === 0){
       table.style.display = 'none';
       stateMsg.style.display = 'block';
       stateMsg.textContent = 'No data found — try changing the filters.';
+      document.getElementById('detailsPagination').innerHTML = '';
     } else {
       table.style.display = 'table';
       stateMsg.style.display = 'none';
-      tbody.innerHTML = rows.map(r => {
+      tbody.innerHTML = pageRows.map(r => {
         const isOff = /^off$/i.test(r.shift.trim());
         return `<tr class="${isOff ? 'off-row' : ''}">
           <td>${r.display}</td>
@@ -1440,11 +1528,65 @@
           <td><span class="pill ${regionPillClass(r.region)}">${r.region}</span></td>
         </tr>`;
       }).join('');
+      renderDetailsPagination(totalRows, totalPages, startIdx, pageRows.length);
     }
 
+    const rangeStart = totalRows === 0 ? 0 : startIdx + 1;
+    const rangeEnd = startIdx + pageRows.length;
     document.getElementById('summary').innerHTML =
-      `Showing <b>${rows.length}</b> entries total${agentQ ? ` — for "${document.getElementById('fAgent').value.trim()}"` : ''}`;
+      `Showing <b>${rangeStart}–${rangeEnd}</b> of <b>${totalRows}</b> entries${agentQ ? ` — for "${document.getElementById('fAgent').value.trim()}"` : ''}`;
+
+    updateSortArrows();
   }
+
+  function updateSortArrows(){
+    document.querySelectorAll('#schedTable thead th[data-sort]').forEach(th => {
+      const col = th.dataset.sort;
+      const arrow = th.querySelector('.sort-arrow');
+      if(!arrow) return;
+      if(col === detailsSortColumn){
+        arrow.textContent = detailsSortDirection === 'asc' ? '▲' : '▼';
+        arrow.classList.add('active');
+      } else {
+        arrow.textContent = '↕';
+        arrow.classList.remove('active');
+      }
+    });
+  }
+
+  function renderDetailsPagination(totalRows, totalPages){
+    const el = document.getElementById('detailsPagination');
+    el.innerHTML = `
+      <span class="pagination-info">${totalRows} entries total</span>
+      <div class="pagination-controls">
+        <button type="button" class="page-btn" id="detailsPrevPage" ${detailsCurrentPage <= 1 ? 'disabled' : ''}>‹ Prev</button>
+        <span class="page-indicator">Page ${detailsCurrentPage} of ${totalPages}</span>
+        <button type="button" class="page-btn" id="detailsNextPage" ${detailsCurrentPage >= totalPages ? 'disabled' : ''}>Next ›</button>
+      </div>
+    `;
+    const prevBtn = document.getElementById('detailsPrevPage');
+    const nextBtn = document.getElementById('detailsNextPage');
+    if(prevBtn) prevBtn.addEventListener('click', () => {
+      if(detailsCurrentPage > 1){ detailsCurrentPage--; renderDetails(); }
+    });
+    if(nextBtn) nextBtn.addEventListener('click', () => {
+      if(detailsCurrentPage < totalPages){ detailsCurrentPage++; renderDetails(); }
+    });
+  }
+
+  document.querySelectorAll('#schedTable thead th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      if(detailsSortColumn === col){
+        detailsSortDirection = detailsSortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        detailsSortColumn = col;
+        detailsSortDirection = 'asc';
+      }
+      detailsCurrentPage = 1;
+      renderDetails();
+    });
+  });
 
   /* ========== CUSTOM HOLIDAY PICKER (modal, multi-select) ========== */
   function renderHolidayList(){
@@ -1585,6 +1727,15 @@
     return { startMin, endMin };
   }
 
+  // A row only counts as an actual duty/working day when its shift value
+  // parses into a real time range. This naturally excludes "OFF",
+  // "Resigned", blank cells, "N/A", or any other non-time status — so
+  // salary, travel allowance and duty-day stats are never counted for
+  // days with no real shift time.
+  function hasShiftTime(shiftStr){
+    return parseShiftRange(shiftStr) !== null;
+  }
+
   // Travel allowance rules:
   //  - Any shift ending exactly at 10:00 PM -> 45 tk
   //  - Any other shift starting or ending between 10:00 PM and 5:00 AM (inclusive) -> 115 tk
@@ -1624,8 +1775,7 @@
     let holidayDutyDays = 0;
 
     filtered.forEach(r => {
-      const isOff = r.shift.trim().toUpperCase() === 'OFF';
-      if(!isOff){
+      if(hasShiftTime(r.shift)){
         dutyDaysWorked++;
         travelTotal += computeTravelAllowance(r.shift);
         if(customHolidays.has(r.sortKey)){
@@ -1744,8 +1894,7 @@
     let regions = new Set();
     
     filtered.forEach(r => {
-      const isOff = r.shift.trim().toUpperCase() === 'OFF';
-      if(!isOff) {
+      if(hasShiftTime(r.shift)) {
         dutyDays++;
         shiftCounts[r.shift] = (shiftCounts[r.shift] || 0) + 1;
         if(r.region) regions.add(r.region);
@@ -1889,13 +2038,20 @@
 
   /* ========== EVENT BINDINGS ========== */
   // Details Filters
-  ['fMonth','fRegion','fShift'].forEach(id => document.getElementById(id).addEventListener('change', renderDetails));
-  document.getElementById('fAgent').addEventListener('input', renderDetails);
+  ['fMonth','fRegion','fShift'].forEach(id => document.getElementById(id).addEventListener('change', () => {
+    detailsCurrentPage = 1;
+    renderDetails();
+  }));
+  document.getElementById('fAgent').addEventListener('input', () => {
+    detailsCurrentPage = 1;
+    renderDetails();
+  });
   document.getElementById('clearBtn').addEventListener('click', () => {
     document.getElementById('fMonth').value = '';
     document.getElementById('fRegion').value = '';
     document.getElementById('fShift').value = '';
     document.getElementById('fAgent').value = '';
+    detailsCurrentPage = 1;
     renderDetails();
   });
 
